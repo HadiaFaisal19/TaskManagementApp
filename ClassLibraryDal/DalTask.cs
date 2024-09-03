@@ -125,7 +125,6 @@ namespace ClassLibraryDal
                 SqlCommand cmd = new SqlCommand("CompleteTask", conn);
                 cmd.CommandType = CommandType.StoredProcedure;
                 cmd.Parameters.AddWithValue("@TaskManagmentID", taskId);
-                cmd.Parameters.AddWithValue("@Status", "Completed"); 
 
                 cmd.ExecuteNonQuery();
             }
