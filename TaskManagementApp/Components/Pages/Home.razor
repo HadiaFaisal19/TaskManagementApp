@@ -1,7 +1,201 @@
-﻿@page "/"
+@page "/"
+@using ClassLibraryModel
+@using ClassLibraryDal
+@inject IJSRuntime JSRuntime
+@inject NavigationManager Navigation
+@rendermode InteractiveServer
 
-<PageTitle>Home</PageTitle>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
 
-<h1>Hello, world!</h1>
+<h2 class="heading">My Tasks</h2>
+<div class="task-header">
+    <button class="add-task-button" @onclick="ShowAddTaskForm">+</button>
+</div>
 
-Welcome to your new app.
+@if (showAddTaskForm)
+{
+    <div class="task-form">
+        <h4>Add New Task</h4>
+        <input class="task-input" placeholder="Task Name" @bind="newTask.TaskName" />
+        <input class="task-input" placeholder="Due Date" type="date" @bind="newTask.DueDate" />
+        <select class="task-input" @bind="newTask.TaskPriority">
+            <option value="">Select Priority</option>
+            <option value="High">High</option>
+            <option value="Medium">Medium</option>
+            <option value="Low">Low</option>
+        </select>
+        <textarea class="task-input" placeholder="Description" @bind="newTask.TaskDescription"></textarea>
+        <textarea class="task-input" placeholder="Special Notes" @bind="newTask.SpecialNote"></textarea>
+        <div class="task-actions-expanded">
+            <button class="save-button" @onclick="() => AddTask()" title="Save">Save</button>
+            <button class="cancel-button" @onclick="()=>CancelAddTask()" title="Cancel">Cancel</button>
+        </div>
+    </div>
+}
+
+<div class="buttons-container">
+    <div class="show-tasks-buttons">
+        <button class="filter-button" @onclick="ShowCompletedTasks">Show Completed Tasks</button>
+        <button class="filter-button" @onclick="LoadPendingTasks">Show Pending Tasks</button>
+    </div>
+    <div class="filter-buttons">
+        <button class="filter-button" @onclick="FilterByDueDate">Filter by Due Date</button>
+        <button class="filter-button" @onclick="FilterByPriority">Filter by Priority</button>
+    </div>
+</div>
+
+<div class="task-list">
+    @if (tasks != null && tasks.Count > 0)
+    {
+        foreach (var task in tasks)
+        {
+            <div class="task-card" @onclick="() => ToggleTaskDetails(task.TaskManagmentID)">
+                <div class="task-details">
+                    @if (editTaskId == task.TaskManagmentID)
+                    {
+                        <!-- Inline Editing Form -->
+                        <input class="task-input" type="text" @bind="task.TaskName" placeholder="Task Name" />
+                        <select class="task-input" @bind="task.TaskPriority">
+                            <option value="">Select Priority</option>
+                            <option value="High">High</option>
+                            <option value="Medium">Medium</option>
+                            <option value="Low">Low</option>
+                        </select>
+                        <input class="task-input" type="date" @bind="task.DueDate" placeholder="Due Date" />
+                        <textarea class="task-input" @bind="task.TaskDescription" placeholder="Description"></textarea>
+                        <textarea class="task-input" @bind="task.SpecialNote" placeholder="Special Notes"></textarea>
+                        <div class="task-actions-expanded">
+                            <button class="save-button" @onclick="() => SaveTask(task)" title="Save">Save</button>
+                            <button class="cancel-button" @onclick="CancelEdit" title="Cancel">Cancel</button>
+                        </div>
+                    }
+                    else
+                    {
+                        <!-- Task Details View -->
+                        <h4>@task.TaskName</h4>
+                        <p><strong>Priority:</strong> @task.TaskPriority</p>
+                        <p><strong>Due Date:</strong> @task.DueDate.ToShortDateString()</p>
+                        @if (expandedTaskId == task.TaskManagmentID)
+                        {
+                            <p><strong>Description:</strong> @task.TaskDescription</p>
+                            <p><strong>Special Notes:</strong> @task.SpecialNote</p>
+                            <div class="task-actions-expanded">
+                                <button @onclick="() => DeleteTask(task.TaskManagmentID)" title="Delete"><i class="fas fa-trash"></i></button>
+                                @if (task.TaskStatus == "Pending")
+                                {
+                                    <button @onclick="() => EditTask(task.TaskManagmentID)" title="Edit"><i class="fas fa-edit"></i></button>
+                                }
+                            </div>
+                        }
+                    }
+                </div>
+                <div class="task-actions">
+                    @if (task.TaskStatus == "Pending" && editTaskId != task.TaskManagmentID)
+                    {
+                        <button class="complete-button" @onclick="async () => await CompleteTask(task.TaskManagmentID)">Complete</button>
+                    }
+                </div>
+            </div>
+        }
+    }
+    else
+    {
+        <p>No tasks found.</p>
+    }
+</div>
+
+@code {
+    private List<TaskModel> tasks = new List<TaskModel>();
+    private int expandedTaskId = -1;
+    private int editTaskId = -1;
+    private bool showAddTaskForm = false;
+    private TaskModel newTask = new TaskModel();
+
+    protected override void OnInitialized()
+    {
+        LoadPendingTasks();
+    }
+
+    private void LoadPendingTasks()
+    {
+        tasks = DalTask.GetAllTasks().Where(t => t.TaskStatus == "Pending").ToList();
+    }
+
+    private void ShowCompletedTasks()
+    {
+        tasks = DalTask.GetAllTasks().Where(t => t.TaskStatus == "Completed").ToList();
+    }
+
+    private void ShowAddTaskForm()
+    {
+        showAddTaskForm = true;
+    }
+
+    private void AddTask()
+    {
+        if (!string.IsNullOrEmpty(newTask.TaskName) && !string.IsNullOrEmpty(newTask.TaskPriority))
+        {
+            DalTask.AddTask(newTask);
+            LoadPendingTasks();
+            showAddTaskForm = false;
+            newTask = new TaskModel();
+        }
+    }
+
+    private void CancelAddTask()
+    {
+        showAddTaskForm = false;
+        newTask = new TaskModel();
+    }
+
+    private async Task CompleteTask(int taskId)
+    {
+        DalTask.CompleteTask(taskId);
+        LoadPendingTasks();
+        await JSRuntime.InvokeVoidAsync("alert", "Task completed Successfully!");
+    }
+
+    private void EditTask(int taskId)
+    {
+        editTaskId = taskId;
+    }
+
+    private void CancelEdit()
+    {
+        editTaskId = -1;
+    }
+
+    private void SaveTask(TaskModel task)
+    {
+        DalTask.UpdateTask(task);
+        LoadPendingTasks();
+        editTaskId = -1;
+    }
+
+    private async Task DeleteTask(int taskId)
+    {
+        bool confirmed = await JSRuntime.InvokeAsync<bool>("confirm", "Are you sure you want to delete this task?");
+        if (confirmed)
+        {
+            DalTask.DeleteTask(taskId);
+        }
+    }
+
+    private void ToggleTaskDetails(int taskId)
+    {
+        expandedTaskId = expandedTaskId == taskId ? -1 : taskId;
+    }
+
+    private void FilterByDueDate()
+    {
+        tasks = tasks.OrderBy(t => t.DueDate).ToList();
+    }
+
+    private void FilterByPriority()
+    {
+        tasks = tasks.OrderByDescending(t => t.TaskPriority == "High")
+                     .ThenByDescending(t => t.TaskPriority == "Medium")
+                     .ThenByDescending(t => t.TaskPriority == "Low")
+                     .ToList();
+    }
+}
